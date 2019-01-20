@@ -123,16 +123,54 @@ def get_im_data(base_path):
     
     for f in folds:
         files = glob.glob(os.path.join(f, '*','*.png'))
-        if len(files) == 0:
+        if len(files) == 0 or f.find('mixed') != -1:
             indicator_dict[f] = (False, is_val(f))
         else:
             indicator_dict[f] = (True,  is_val(f))
     return indicator_dict
 
 
+def split_mixed(base_path, split=0.8):
+    mixed = glob.glob(os.path.join(base_path, 'mixed', '*', '*'))
+
+    for folder in mixed:
+        files = glob.glob(os.path.join(folder, '*.png'))
+
+        cam1 = sorted(list(filter(lambda x: x.find('cam1_') != -1, files)))
+        cam2 = sorted(list(filter(lambda x: x.find('cam2_') != -1, files)))
+        cam3 = sorted(list(filter(lambda x: x.find('cam3_') != -1, files)))
+        cam4 = sorted(list(filter(lambda x: x.find('cam4_') != -1, files)))
+
+        split_idx = int(len(cam1) * split)
+        split_mask = np.random.permutation(len(cam1))
+        train_mask, test_mask = split_mask[:split_idx], split_mask[split_idx:]
+
+        train_folder = folder.replace('mixed', 'train')
+        test_folder = folder.replace('mixed', 'validation')
+        make_dir_if_not_exist(train_folder)
+        make_dir_if_not_exist(test_folder)
+
+        for i in train_mask:
+            shutil.copy(cam1[i], train_folder)
+            shutil.copy(cam2[i], train_folder)
+            shutil.copy(cam3[i], train_folder)
+            shutil.copy(cam4[i], train_folder)
+
+        for i in test_mask:
+            shutil.copy(cam1[i], test_folder)
+            shutil.copy(cam2[i], test_folder)
+            shutil.copy(cam3[i], test_folder)
+            shutil.copy(cam4[i], test_folder)
+
+
 if __name__ == '__main__':
     raw_data = os.path.join('..', 'data', 'raw_sim_data')
     proc_data = os.path.join('..', 'data', 'processed_sim_data')
+
+    # Check if there're files in the mixed folder. If so, split them into train/validation
+    mixed = glob.glob(os.path.join(raw_data, 'mixed', '*', '*'))
+    if len(mixed) > 0:
+        split_mixed(raw_data, 0.8)
 
     indicator_dict = get_im_data(raw_data) 
 
@@ -140,7 +178,7 @@ if __name__ == '__main__':
     out_train_dir = os.path.join(proc_data, 'train')
 
     for e, i in enumerate(indicator_dict.items()):
-        # no data in the folder so skip it
+        # no data in the folder or it's the Mixed folder so skip it
         if not i[1][0]:
             continue
 
